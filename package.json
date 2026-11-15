@@ -1,0 +1,19 @@
+{
+  "name": "testpilot-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI-powered Quality Engineering platform",
+  "workspaces": ["apps/*", "packages/*"],
+  "engines": { "node": ">=20.0.0" },
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev"
+  },
+  "devDependencies": {
+    "prisma": "^6.19.0",
+    "typescript": "^5.9.3"
+  }
+}
