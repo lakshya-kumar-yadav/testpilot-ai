@@ -19,6 +19,6 @@ A TypeScript monorepo with a modular Express API and a separately deployable exe
 6. Require user review and approval before script execution.
 
 ## Execution safety
-Generated code is untrusted. Do not execute it in the API process or on the host.
+Code is untrusted. Do not execute it in the API process or on the host.
 A future worker must use an isolated container, non-root user, read-only filesystem where possible,
 resource limits, timeouts, restricted network access and no access to application secrets.
