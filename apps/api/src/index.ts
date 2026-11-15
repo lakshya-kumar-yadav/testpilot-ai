@@ -1,21 +1,28 @@
-import "dotenv/config";
-import cors from "cors";
-import express from "express";
+import { app } from "./app.js";
+import { env } from "./config/env.js";
+import { pool } from "./config/database.js";
 
-const app = express();
-const port = Number(process.env.API_PORT ?? 4000);
+const server = app.listen(env.port, () => {
+  console.log(`TestPilot AI API listening on http://localhost:${env.port}`);
+});
 
-app.use(cors({ origin: process.env.WEB_ORIGIN ?? "http://localhost:5173" }));
-app.use(express.json({ limit: "1mb" }));
+async function shutdown(signal: string): Promise<void> {
+  console.log(`${signal} received. Shutting down API...`);
 
-app.get("/api/health", (_request, response) => {
-  response.status(200).json({
-    status: "ok",
-    service: "testpilot-api",
-    timestamp: new Date().toISOString()
+  server.close(async (error) => {
+    if (error) {
+      console.error("Error while closing the HTTP server:", error);
+      process.exitCode = 1;
+    }
+
+    try {
+      await pool.end();
+    } catch (poolError) {
+      console.error("Error while closing the PostgreSQL pool:", poolError);
+      process.exitCode = 1;
+    }
   });
-});
+}
 
-app.listen(port, () => {
-  console.log(`TestPilot AI API listening on http://localhost:${port}`);
-});
+process.on("SIGINT", () => void shutdown("SIGINT"));
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
