@@ -6,14 +6,13 @@ TestPilot AI uses PostgreSQL 16 and versioned SQL migration files. Prisma and ot
 
 1. Copy the root environment template: `cp .env.example .env`.
 2. Start PostgreSQL: `docker compose up -d postgres`.
-3. Install the API PostgreSQL driver: `npm install pg -w apps/api`.
-4. Apply the initial migration:
+3. Install workspace dependencies from the repository root: `npm install`.
+4. Export the `DATABASE_URL` value from your local `.env` file in the current shell. The PostgreSQL CLI does not automatically load `.env`.
+5. Apply the initial migration: `npm run db:migrate`.
 
-```bash
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f database/migrations/001_initial_schema.sql
-```
+The `db:migrate` script currently applies `001_initial_schema.sql` to a new database. It is an initial-schema setup command, not yet a general migration runner. Apply future numbered SQL migrations with `psql` until a migration runner is introduced.
 
-Apply this initial migration once to a new database. Keep future schema changes in new, numbered SQL files; never edit an already-applied migration.
+Keep future schema changes in new, numbered SQL files; never edit an already-applied migration.
 
 ## Data model
 
