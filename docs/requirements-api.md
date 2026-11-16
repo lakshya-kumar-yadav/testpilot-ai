@@ -32,7 +32,7 @@ The source file name is optional metadata. This API accepts requirement text; bi
 - `APPROVED`: reviewed and approved by a human
 - `ARCHIVED`: retained for history but no longer active
 
-The API currently validates status values; the analyzer workflow will own the transition to `ANALYZED`.
+The API does not allow clients to set `ANALYZED`; that transition is reserved for the analyzer workflow. Editing a requirement's title or content resets its status to `DRAFT`, invalidating any prior review. Human reviewers can set `APPROVED`, and users can archive or restore a requirement.
 
 ## Listing
 
