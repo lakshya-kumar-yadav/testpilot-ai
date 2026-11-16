@@ -17,10 +17,14 @@ const createRequirementSchema = z.object({
 const updateRequirementSchema = z.object({
   title: z.string().trim().min(1).max(200).optional(),
   content: z.string().trim().min(1).max(50_000).optional(),
-  status: requirementStatusSchema.optional(),
-}).strict().refine((value) => Object.keys(value).length > 0, {
-  message: "At least one requirement field must be provided",
-});
+  status: z.enum(["DRAFT", "APPROVED", "ARCHIVED"]).optional(),
+}).strict()
+  .refine((value) => Object.keys(value).length > 0, {
+    message: "At least one requirement field must be provided",
+  })
+  .refine((value) => !(value.title || value.content) || !value.status || value.status === "DRAFT", {
+    message: "Editing requirement content resets its status to DRAFT",
+  });
 
 const listQuerySchema = z.object({
   status: requirementStatusSchema.optional(),
@@ -164,7 +168,7 @@ requirementsRouter.patch("/requirements/:requirementId", async (request, respons
     `UPDATE requirements r
      SET title = COALESCE($1, r.title),
          content = COALESCE($2, r.content),
-         status = COALESCE($3, r.status),
+         status = CASE WHEN $1 IS NOT NULL OR $2 IS NOT NULL THEN 'DRAFT' ELSE COALESCE($3, r.status) END,
          updated_at = NOW()
      FROM projects p
      WHERE r.id = $4 AND p.id = r.project_id AND p.owner_id = $5
