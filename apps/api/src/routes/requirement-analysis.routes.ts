@@ -59,15 +59,24 @@ requirementAnalysisRouter.post("/requirements/:requirementId/analyze", async (re
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    const statusUpdate = await client.query(
+      `UPDATE requirements
+       SET status = 'ANALYZED', updated_at = NOW()
+       WHERE id = $1 AND title = $2 AND content = $3 AND status IN ('DRAFT', 'ANALYZED')`,
+      [requirement.id, requirement.title, requirement.content],
+    );
+    if (statusUpdate.rowCount === 0) {
+      await client.query("ROLLBACK");
+      response.status(409).json({
+        error: { code: "REQUIREMENT_CHANGED", message: "The requirement changed during analysis. Refresh it and run analysis again." },
+      });
+      return;
+    }
     const analysisInsert = await client.query<{ id: string; created_at: Date }>(
       `INSERT INTO ai_analyses (requirement_id, model_name, prompt_version, status, result)
        VALUES ($1, $2, $3, 'COMPLETED', $4::jsonb)
        RETURNING id, created_at`,
       [requirement.id, result.modelName, result.promptVersion, JSON.stringify(result.analysis)],
-    );
-    await client.query(
-      "UPDATE requirements SET status = 'ANALYZED', updated_at = NOW() WHERE id = $1",
-      [requirement.id],
     );
     await client.query("COMMIT");
 
