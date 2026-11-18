@@ -7,7 +7,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   JWT_SECRET: z.string().min(32, "JWT_SECRET must contain at least 32 characters"),
   OLLAMA_BASE_URL: z.string().url().default("http://localhost:11434"),
-  OLLAMA_MODEL: z.string().trim().min(1).default("qwen2.5:7b"),
+  OLLAMA_MODEL: z.preprocess((value) => value === "" ? undefined : value, z.string().trim().min(1).default("qwen2.5:7b")),
 });
 const parsedEnv = envSchema.safeParse(process.env);
 if (!parsedEnv.success) {
