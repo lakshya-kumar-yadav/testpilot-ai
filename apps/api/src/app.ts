@@ -8,6 +8,7 @@ import { authRouter } from "./routes/auth.routes.js";
 import { projectsRouter } from "./routes/projects.routes.js";
 import { requirementsRouter } from "./routes/requirements.routes.js";
 import { documentUploadRouter } from "./routes/document-upload.routes.js";
+import { requirementAnalysisRouter } from "./routes/requirement-analysis.routes.js";
 
 export const app = express();
 
@@ -20,6 +21,7 @@ app.use("/api/auth", authRouter);
 app.use("/api/projects", projectsRouter);
 app.use("/api", requirementsRouter);
 app.use("/api", documentUploadRouter);
+app.use("/api", requirementAnalysisRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
