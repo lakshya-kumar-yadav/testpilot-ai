@@ -6,6 +6,8 @@ const envSchema = z.object({
   WEB_ORIGIN: z.string().url().default("http://localhost:5173"),
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   JWT_SECRET: z.string().min(32, "JWT_SECRET must contain at least 32 characters"),
+  OLLAMA_BASE_URL: z.string().url().default("http://localhost:11434"),
+  OLLAMA_MODEL: z.string().trim().min(1).default("qwen2.5:7b"),
 });
 const parsedEnv = envSchema.safeParse(process.env);
 if (!parsedEnv.success) {
@@ -17,4 +19,6 @@ export const env = {
   webOrigin: parsedEnv.data.WEB_ORIGIN,
   databaseUrl: parsedEnv.data.DATABASE_URL,
   jwtSecret: parsedEnv.data.JWT_SECRET,
+  ollamaBaseUrl: parsedEnv.data.OLLAMA_BASE_URL,
+  ollamaModel: parsedEnv.data.OLLAMA_MODEL,
 };
