@@ -98,3 +98,28 @@ requirementAnalysisRouter.post("/requirements/:requirementId/analyze", async (re
     client.release();
   }
 });
+
+
+// Retrieve the latest completed analysis for the owning user's requirement.
+requirementAnalysisRouter.get("/requirements/:requirementId/analysis", async (request, response) => {
+  const parsedId = uuidSchema.safeParse(request.params.requirementId);
+  if (!parsedId.success) {
+    response.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid requirement ID" } });
+    return;
+  }
+  const result = await pool.query(
+    `SELECT a.id, a.model_name, a.prompt_version, a.status, a.result, a.created_at
+     FROM ai_analyses a
+     INNER JOIN requirements r ON r.id = a.requirement_id
+     INNER JOIN projects p ON p.id = r.project_id
+     WHERE r.id = $1 AND p.owner_id = $2 AND a.status = 'COMPLETED'
+     ORDER BY a.created_at DESC LIMIT 1`,
+    [parsedId.data, request.authenticatedUserId],
+  );
+  if (result.rowCount === 0) {
+    response.status(404).json({ error: { code: "ANALYSIS_NOT_FOUND", message: "No completed analysis exists for this requirement" } });
+    return;
+  }
+  const row = result.rows[0];
+  response.status(200).json({ data: { analysisId: row.id, model: row.model_name, promptVersion: row.prompt_version, status: row.status, analysis: row.result, createdAt: row.created_at, requiresHumanReview: true } });
+});
