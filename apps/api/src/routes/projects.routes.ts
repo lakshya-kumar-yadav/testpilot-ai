@@ -48,9 +48,7 @@ function toProject(row: ProjectRow) {
   };
 }
 
-projectsRouter.use(requireAuth);
-
-projectsRouter.post("/", async (request, response) => {
+projectsRouter.post("/", requireAuth, async (request, response) => {
   const parsed = createProjectSchema.safeParse(request.body);
   if (!parsed.success) {
     response.status(400).json({
@@ -73,7 +71,7 @@ projectsRouter.post("/", async (request, response) => {
   response.status(201).json({ data: { project: toProject(result.rows[0]) } });
 });
 
-projectsRouter.get("/", async (request, response) => {
+projectsRouter.get("/", requireAuth, async (request, response) => {
   const parsed = listProjectsQuerySchema.safeParse(request.query);
   if (!parsed.success) {
     response.status(400).json({
@@ -104,7 +102,7 @@ projectsRouter.get("/", async (request, response) => {
   });
 });
 
-projectsRouter.get("/:projectId", async (request, response) => {
+projectsRouter.get("/:projectId", requireAuth, async (request, response) => {
   const parsedId = projectIdSchema.safeParse(request.params.projectId);
   if (!parsedId.success) {
     response.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid project ID" } });
@@ -125,7 +123,7 @@ projectsRouter.get("/:projectId", async (request, response) => {
   response.status(200).json({ data: { project: toProject(result.rows[0]) } });
 });
 
-projectsRouter.patch("/:projectId", async (request, response) => {
+projectsRouter.patch("/:projectId", requireAuth, async (request, response) => {
   const parsedId = projectIdSchema.safeParse(request.params.projectId);
   if (!parsedId.success) {
     response.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid project ID" } });
