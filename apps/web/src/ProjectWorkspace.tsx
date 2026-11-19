@@ -1,0 +1,134 @@
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Bot, CheckCircle2, FileText, LoaderCircle, Upload, WandSparkles } from "lucide-react";
+import { apiRequest } from "./api";
+import { useAuth } from "./auth";
+
+type Project = { id: string; name: string; description: string | null; status: "ACTIVE" | "ARCHIVED" };
+type Requirement = { id: string; projectId: string; title: string; content: string; sourceFileName: string | null; status: string; createdAt: string; updatedAt: string };
+type TestCase = { id: string; requirementId: string; title: string; description: string | null; preconditions: string | null; steps: Array<{ step: string; expectedResult?: string }>; expectedResult: string; priority: string; testType: string; status: "DRAFT" | "REVIEW" | "APPROVED" | "REJECTED" };
+type Analysis = { overallAssessment?: string; summary?: string; [key: string]: unknown };
+type Data<T> = { data: T };
+const field = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
+
+export default function ProjectWorkspace() {
+  const { projectId = "" } = useParams();
+  const { accessToken, user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [project, setProject] = useState<Project | null>(null);
+  const [requirements, setRequirements] = useState<Requirement[]>([]);
+  const [selectedId, setSelectedId] = useState("");
+  const [testCases, setTestCases] = useState<TestCase[]>([]);
+  const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  const selected = useMemo(() => requirements.find(item => item.id === selectedId) ?? null, [requirements, selectedId]);
+
+  async function loadProject() {
+    const [projectResult, requirementsResult] = await Promise.all([
+      apiRequest<Data<{ project: Project }>>(`/api/projects/${projectId}`, {}, accessToken),
+      apiRequest<Data<{ requirements: Requirement[] }>>(`/api/projects/${projectId}/requirements`, {}, accessToken),
+    ]);
+    setProject(projectResult.data.project);
+    setRequirements(requirementsResult.data.requirements);
+    setSelectedId(current => current || requirementsResult.data.requirements[0]?.id || "");
+  }
+
+  async function loadArtifacts(requirementId: string) {
+    setError("");
+    const [casesResult, analysisResult] = await Promise.all([
+      apiRequest<Data<{ testCases: TestCase[] }>>(`/api/requirements/${requirementId}/test-cases`, {}, accessToken),
+      apiRequest<Data<{ analysis: Analysis }>>(`/api/requirements/${requirementId}/analysis`, {}, accessToken).catch(() => null),
+    ]);
+    setTestCases(casesResult.data.testCases);
+    setAnalysis(analysisResult?.data.analysis ?? null);
+  }
+
+  useEffect(() => { void loadProject().catch(err => setError(err instanceof Error ? err.message : "Unable to load project")); }, [projectId, accessToken]);
+  useEffect(() => { if (selectedId) void loadArtifacts(selectedId).catch(err => setError(err instanceof Error ? err.message : "Unable to load requirement artifacts")); else { setTestCases([]); setAnalysis(null); } }, [selectedId, accessToken]);
+
+  async function createRequirement(event: FormEvent) {
+    event.preventDefault(); setBusy("save"); setError(""); setNotice("");
+    try {
+      const result = await apiRequest<Data<{ requirement: Requirement }>>(`/api/projects/${projectId}/requirements`, { method: "POST", body: JSON.stringify({ title, content, sourceFileName: file?.name }) }, accessToken);
+      setRequirements(items => [result.data.requirement, ...items]); setSelectedId(result.data.requirement.id); setTitle(""); setContent(""); setFile(null); setNotice("Requirement saved.");
+    } catch (err) { setError(err instanceof Error ? err.message : "Unable to save requirement"); }
+    finally { setBusy(""); }
+  }
+
+  async function uploadAndPreview() {
+    if (!file) return;
+    setBusy("upload"); setError(""); setNotice("");
+    try {
+      const body = new FormData(); body.append("file", file);
+      const result = await apiRequest<Data<{ fileName: string; extractedText: string }>>(`/api/projects/${projectId}/requirements/preview`, { method: "POST", body }, accessToken);
+      setTitle(file.name.replace(/\.[^.]+$/, "").slice(0, 200)); setContent(result.data.extractedText); setNotice("Document text extracted. Review it before saving the requirement.");
+    } catch (err) { setError(err instanceof Error ? err.message : "Unable to extract document text"); }
+    finally { setBusy(""); }
+  }
+
+  async function runAnalysis() {
+    if (!selected) return;
+    setBusy("analyze"); setError(""); setNotice("");
+    try {
+      const result = await apiRequest<Data<{ analysis: Analysis }>>(`/api/requirements/${selected.id}/analyze`, { method: "POST" }, accessToken);
+      setAnalysis(result.data.analysis); setRequirements(items => items.map(item => item.id === selected.id ? { ...item, status: "ANALYZED" } : item)); setNotice("AI analysis completed. Review the findings before generating test cases.");
+    } catch (err) { setError(err instanceof Error ? err.message : "Analysis failed"); }
+    finally { setBusy(""); }
+  }
+
+  async function generateCases() {
+    if (!selected) return;
+    setBusy("generate"); setError(""); setNotice("");
+    try {
+      await apiRequest(`/api/requirements/${selected.id}/test-cases/generate`, { method: "POST" }, accessToken);
+      await loadArtifacts(selected.id); setNotice("Test cases generated as drafts. Review each case before approval.");
+    } catch (err) { setError(err instanceof Error ? err.message : "Test case generation failed"); }
+    finally { setBusy(""); }
+  }
+
+  async function reviewCase(testCase: TestCase, status: TestCase["status"]) {
+    setBusy(testCase.id); setError("");
+    try {
+      await apiRequest(`/api/test-cases/${testCase.id}`, { method: "PATCH", body: JSON.stringify({ status }) }, accessToken);
+      setTestCases(items => items.map(item => item.id === testCase.id ? { ...item, status } : item));
+    } catch (err) { setError(err instanceof Error ? err.message : "Unable to update test case"); }
+    finally { setBusy(""); }
+  }
+
+  const approvedCount = testCases.filter(item => item.status === "APPROVED").length;
+  return <div className="min-h-screen bg-slate-50 text-slate-900">
+    <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4 md:px-8">
+      <div className="flex items-center gap-3"><Link to="/" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Back to projects"><ArrowLeft size={18}/></Link><div><p className="text-xs text-slate-400">TestPilot AI / Project workspace</p><h1 className="font-semibold">{project?.name ?? "Loading project…"}</h1></div></div>
+      <div className="flex items-center gap-3"><span className="hidden text-sm text-slate-500 sm:block">{user?.displayName}</span><button onClick={() => { logout(); navigate("/login"); }} className="text-sm font-medium text-slate-600">Sign out</button></div>
+    </header>
+    <main className="mx-auto grid max-w-7xl gap-6 px-5 py-7 lg:grid-cols-[340px_minmax(0,1fr)] md:px-8">
+      <aside className="space-y-5">
+        <section className="rounded-xl border border-slate-200 bg-white p-5"><div className="flex items-center gap-2"><FileText size={18} className="text-blue-700"/><h2 className="font-semibold">Requirements</h2></div><p className="mt-1 text-xs text-slate-500">Add a requirement or select one to continue.</p>
+          <div className="mt-4 space-y-2">{requirements.map(item => <button key={item.id} onClick={() => setSelectedId(item.id)} className={`w-full rounded-lg border p-3 text-left ${selectedId === item.id ? "border-blue-300 bg-blue-50" : "border-slate-200 hover:bg-slate-50"}`}><span className="block truncate text-sm font-medium">{item.title}</span><span className="mt-1 block text-[11px] text-slate-500">{item.status} · {new Date(item.updatedAt).toLocaleDateString()}</span></button>)}{requirements.length === 0 && <p className="rounded-lg bg-slate-50 p-3 text-xs text-slate-500">No requirements yet.</p>}</div>
+        </section>
+        <form onSubmit={createRequirement} className="rounded-xl border border-slate-200 bg-white p-5"><h2 className="font-semibold">New requirement</h2>
+          <label className="mt-4 block text-xs font-medium text-slate-600">Title<input required maxLength={200} value={title} onChange={e=>setTitle(e.target.value)} className={field} placeholder="User login and access"/></label>
+          <label className="mt-3 block text-xs font-medium text-slate-600">Requirement text<textarea required minLength={1} maxLength={50000} rows={5} value={content} onChange={e=>setContent(e.target.value)} className={field} placeholder="Describe expected product behaviour…"/></label>
+          <label className="mt-3 block text-xs font-medium text-slate-600">Upload source document <span className="font-normal text-slate-400">(PDF, DOCX, TXT · max 10 MB)</span><input type="file" accept=".pdf,.docx,.txt" onChange={e=>setFile(e.target.files?.[0] ?? null)} className="mt-2 block w-full text-xs text-slate-600"/></label>
+          <div className="mt-3 flex flex-wrap gap-2"><button type="button" disabled={!file || !!busy} onClick={() => void uploadAndPreview()} className="flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold disabled:opacity-50"><Upload size={14}/>{busy === "upload" ? "Extracting…" : "Extract text"}</button><button disabled={!!busy} className="rounded-lg bg-blue-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy === "save" ? "Saving…" : "Save requirement"}</button></div>
+        </form>
+      </aside>
+      <section className="space-y-5">
+        {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}{notice && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700">{notice}</p>}
+        {!selected ? <div className="rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center"><FileText className="mx-auto text-slate-300" size={30}/><h2 className="mt-3 font-semibold">Select a requirement</h2><p className="mt-1 text-sm text-slate-500">Your AI analysis and generated test cases will appear here.</p></div> : <>
+          <section className="rounded-xl border border-slate-200 bg-white p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold tracking-wide text-blue-700">REQUIREMENT</p><h2 className="mt-1 text-lg font-semibold">{selected.title}</h2><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">{selected.content}</p></div><span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold">{selected.status}</span></div><div className="mt-5 flex flex-wrap gap-2"><button disabled={!!busy || selected.status === "APPROVED" || selected.status === "ARCHIVED"} onClick={() => void runAnalysis()} className="flex items-center gap-2 rounded-lg bg-indigo-700 px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-50"><Bot size={15}/>{busy === "analyze" ? "Analyzing…" : "Analyze with AI"}</button><button disabled={!!busy || !analysis} onClick={() => void generateCases()} className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-xs font-semibold text-blue-800 disabled:opacity-50"><WandSparkles size={15}/>{busy === "generate" ? "Generating…" : "Generate test cases"}</button></div></section>
+          {analysis && <section className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-5"><div className="flex items-center gap-2"><Bot size={18} className="text-indigo-700"/><h3 className="font-semibold">AI analysis</h3><span className="ml-auto text-[10px] font-semibold text-indigo-700">HUMAN REVIEW REQUIRED</span></div><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">{String(analysis.overallAssessment ?? analysis.summary ?? "Analysis completed. Review the structured findings below.")}</p><details className="mt-3"><summary className="cursor-pointer text-xs font-semibold text-indigo-800">View structured analysis</summary><pre className="mt-3 max-h-80 overflow-auto rounded-lg bg-white p-3 text-xs">{JSON.stringify(analysis, null, 2)}</pre></details></section>}
+          <section className="rounded-xl border border-slate-200 bg-white p-5"><div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="font-semibold">Generated test cases</h3><p className="mt-1 text-xs text-slate-500">{testCases.length} cases · {approvedCount} approved</p></div><span className="text-xs text-slate-400">Review before use</span></div>
+            <div className="mt-4 space-y-3">{testCases.map((item,index)=><article key={item.id} className="rounded-lg border border-slate-200 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-semibold text-slate-400">TC-{String(index+1).padStart(3,"0")} · {item.testType} · {item.priority}</p><h4 className="mt-1 text-sm font-semibold">{item.title}</h4><p className="mt-1 text-xs leading-5 text-slate-500">{item.description}</p></div><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold">{item.status}</span></div><p className="mt-3 text-xs font-semibold text-slate-600">Preconditions</p><p className="mt-1 text-xs text-slate-500">{item.preconditions || "None specified"}</p><ol className="mt-3 list-decimal space-y-1 pl-5 text-xs text-slate-600">{item.steps?.map((step,stepIndex)=><li key={stepIndex}>{typeof step === "string" ? step : step.step}</li>)}</ol><p className="mt-3 text-xs font-semibold text-slate-600">Expected result</p><p className="mt-1 text-xs text-slate-500">{item.expectedResult}</p><div className="mt-4 flex flex-wrap gap-2">{item.status !== "APPROVED" && <button disabled={!!busy} onClick={()=>void reviewCase(item,"APPROVED")} className="flex items-center gap-1 rounded-md bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 disabled:opacity-50"><CheckCircle2 size={13}/>Approve</button>}{item.status !== "REVIEW" && item.status !== "APPROVED" && <button disabled={!!busy} onClick={()=>void reviewCase(item,"REVIEW")} className="rounded-md bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 disabled:opacity-50">Mark for review</button>}{item.status !== "REJECTED" && <button disabled={!!busy} onClick={()=>void reviewCase(item,"REJECTED")} className="rounded-md bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 disabled:opacity-50">Reject</button>}</div></article>)}{testCases.length===0 && <div className="rounded-lg bg-slate-50 p-8 text-center"><LoaderCircle className="mx-auto text-slate-300" size={22}/><p className="mt-2 text-sm text-slate-500">No test cases yet. Complete an analysis, then generate test cases.</p></div>}</div>
+          </section>
+        </>}
+      </section>
+    </main>
+  </div>;
+}
