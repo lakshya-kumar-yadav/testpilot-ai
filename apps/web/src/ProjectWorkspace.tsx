@@ -119,8 +119,8 @@ export default function ProjectWorkspace() {
       return `"${text.replace(/"/g, '""')}"`;
     };
     const rows = testCases.map(item => [item.id, item.title, item.description, item.preconditions, item.steps, item.expectedResult, item.priority, item.testType, item.status]);
-    const csv = [columns, ...rows].map(row => row.map(escapeCsv).join(",")).join("\\r\\n");
-    const blob = new Blob(["\\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
+    const csv = [columns, ...rows].map(row => row.map(escapeCsv).join(",")).join("\r\n");
+    const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
