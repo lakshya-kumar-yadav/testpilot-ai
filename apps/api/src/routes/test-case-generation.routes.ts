@@ -152,3 +152,64 @@ testCaseGenerationRouter.post("/requirements/:requirementId/test-cases/generate"
     client.release();
   }
 });
+
+
+const testCaseStatusSchema = z.enum(["DRAFT", "REVIEW", "APPROVED", "REJECTED"]);
+
+// List test cases belonging to a requirement in an owned project.
+testCaseGenerationRouter.get("/requirements/:requirementId/test-cases", async (request, response) => {
+  const parsedId = uuidSchema.safeParse(request.params.requirementId);
+  if (!parsedId.success) {
+    response.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid requirement ID" } });
+    return;
+  }
+  const result = await pool.query(
+    `SELECT tc.id, tc.requirement_id, tc.title, tc.description, tc.preconditions, tc.steps,
+            tc.expected_result, tc.priority, tc.test_type, tc.status, tc.created_at, tc.updated_at
+     FROM test_cases tc
+     INNER JOIN requirements r ON r.id = tc.requirement_id
+     INNER JOIN projects p ON p.id = r.project_id
+     WHERE r.id = $1 AND p.owner_id = $2
+     ORDER BY tc.created_at DESC`,
+    [parsedId.data, request.authenticatedUserId],
+  );
+  response.status(200).json({ data: { testCases: result.rows.map((row) => ({
+    id: row.id, requirementId: row.requirement_id, title: row.title, description: row.description,
+    preconditions: row.preconditions, steps: row.steps, expectedResult: row.expected_result,
+    priority: row.priority, testType: row.test_type, status: row.status,
+    createdAt: row.created_at, updatedAt: row.updated_at,
+  })) } });
+});
+
+// Human review is explicit; generated cases remain drafts until a reviewer changes status.
+testCaseGenerationRouter.patch("/test-cases/:testCaseId", async (request, response) => {
+  const parsedId = uuidSchema.safeParse(request.params.testCaseId);
+  if (!parsedId.success) {
+    response.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid test case ID" } });
+    return;
+  }
+  const parsedBody = z.object({ status: testCaseStatusSchema }).strict().safeParse(request.body);
+  if (!parsedBody.success) {
+    response.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A valid review status is required" } });
+    return;
+  }
+  const result = await pool.query(
+    `UPDATE test_cases tc SET status = $1, updated_at = NOW()
+     FROM requirements r, projects p
+     WHERE tc.id = $2 AND r.id = tc.requirement_id AND p.id = r.project_id AND p.owner_id = $3
+     RETURNING tc.id, tc.requirement_id, tc.title, tc.description, tc.preconditions, tc.steps,
+               tc.expected_result, tc.priority, tc.test_type, tc.status, tc.created_at, tc.updated_at`,
+    [parsedBody.data.status, parsedId.data, request.authenticatedUserId],
+  );
+  if (result.rowCount === 0) {
+    response.status(404).json({ error: { code: "TEST_CASE_NOT_FOUND", message: "Test case not found" } });
+    return;
+  }
+  const row = result.rows[0];
+  response.status(200).json({ data: { testCase: {
+    id: row.id, requirementId: row.requirement_id, title: row.title, description: row.description,
+    preconditions: row.preconditions, steps: row.steps, expectedResult: row.expected_result,
+    priority: row.priority, testType: row.test_type, status: row.status,
+    createdAt: row.created_at, updatedAt: row.updated_at,
+  } } });
+});
