@@ -7,9 +7,7 @@ import { analyzeRequirement } from "../services/requirement-analyzer.js";
 export const requirementAnalysisRouter = Router();
 const uuidSchema = z.uuid();
 
-requirementAnalysisRouter.use(requireAuth);
-
-requirementAnalysisRouter.post("/requirements/:requirementId/analyze", async (request, response) => {
+requirementAnalysisRouter.post("/requirements/:requirementId/analyze", requireAuth, async (request, response) => {
   const parsedId = uuidSchema.safeParse(request.params.requirementId);
   if (!parsedId.success) {
     response.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid requirement ID" } });
@@ -101,7 +99,7 @@ requirementAnalysisRouter.post("/requirements/:requirementId/analyze", async (re
 
 
 // Retrieve the latest completed analysis for the owning user's requirement.
-requirementAnalysisRouter.get("/requirements/:requirementId/analysis", async (request, response) => {
+requirementAnalysisRouter.get("/requirements/:requirementId/analysis", requireAuth, async (request, response) => {
   const parsedId = uuidSchema.safeParse(request.params.requirementId);
   if (!parsedId.success) {
     response.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid requirement ID" } });

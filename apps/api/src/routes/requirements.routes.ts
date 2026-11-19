@@ -62,10 +62,8 @@ function validationError(response: Parameters<import("express").RequestHandler>[
   });
 }
 
-requirementsRouter.use(requireAuth);
-
 // Create a requirement only when the project belongs to the authenticated user.
-requirementsRouter.post("/projects/:projectId/requirements", async (request, response) => {
+requirementsRouter.post("/projects/:projectId/requirements", requireAuth, async (request, response) => {
   const projectId = uuidSchema.safeParse(request.params.projectId);
   if (!projectId.success) {
     validationError(response, "Invalid project ID");
@@ -95,7 +93,7 @@ requirementsRouter.post("/projects/:projectId/requirements", async (request, res
 });
 
 // List requirements only for a project owned by the authenticated user.
-requirementsRouter.get("/projects/:projectId/requirements", async (request, response) => {
+requirementsRouter.get("/projects/:projectId/requirements", requireAuth, async (request, response) => {
   const projectId = uuidSchema.safeParse(request.params.projectId);
   if (!projectId.success) {
     validationError(response, "Invalid project ID");
@@ -128,7 +126,7 @@ requirementsRouter.get("/projects/:projectId/requirements", async (request, resp
 });
 
 // Fetch one requirement, checking project ownership in the same query.
-requirementsRouter.get("/requirements/:requirementId", async (request, response) => {
+requirementsRouter.get("/requirements/:requirementId", requireAuth, async (request, response) => {
   const requirementId = uuidSchema.safeParse(request.params.requirementId);
   if (!requirementId.success) {
     validationError(response, "Invalid requirement ID");
@@ -152,7 +150,7 @@ requirementsRouter.get("/requirements/:requirementId", async (request, response)
 });
 
 // Update only requirements belonging to the authenticated user's projects.
-requirementsRouter.patch("/requirements/:requirementId", async (request, response) => {
+requirementsRouter.patch("/requirements/:requirementId", requireAuth, async (request, response) => {
   const requirementId = uuidSchema.safeParse(request.params.requirementId);
   if (!requirementId.success) {
     validationError(response, "Invalid requirement ID");
