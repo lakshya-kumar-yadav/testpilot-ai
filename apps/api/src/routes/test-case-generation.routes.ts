@@ -16,9 +16,7 @@ type SourceRequirement = {
   analysis_result: unknown;
 };
 
-testCaseGenerationRouter.use(requireAuth);
-
-testCaseGenerationRouter.post("/requirements/:requirementId/test-cases/generate", async (request, response) => {
+testCaseGenerationRouter.post("/requirements/:requirementId/test-cases/generate", requireAuth, async (request, response) => {
   const parsedId = uuidSchema.safeParse(request.params.requirementId);
   if (!parsedId.success) {
     response.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid requirement ID" } });
@@ -157,7 +155,7 @@ testCaseGenerationRouter.post("/requirements/:requirementId/test-cases/generate"
 const testCaseStatusSchema = z.enum(["DRAFT", "REVIEW", "APPROVED", "REJECTED"]);
 
 // List test cases belonging to a requirement in an owned project.
-testCaseGenerationRouter.get("/requirements/:requirementId/test-cases", async (request, response) => {
+testCaseGenerationRouter.get("/requirements/:requirementId/test-cases", requireAuth, async (request, response) => {
   const parsedId = uuidSchema.safeParse(request.params.requirementId);
   if (!parsedId.success) {
     response.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid requirement ID" } });
@@ -182,7 +180,7 @@ testCaseGenerationRouter.get("/requirements/:requirementId/test-cases", async (r
 });
 
 // Human review is explicit; generated cases remain drafts until a reviewer changes status.
-testCaseGenerationRouter.patch("/test-cases/:testCaseId", async (request, response) => {
+testCaseGenerationRouter.patch("/test-cases/:testCaseId", requireAuth, async (request, response) => {
   const parsedId = uuidSchema.safeParse(request.params.testCaseId);
   if (!parsedId.success) {
     response.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid test case ID" } });
