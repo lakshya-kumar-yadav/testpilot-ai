@@ -49,7 +49,7 @@ AI-assisted Quality Engineering workspace for requirement analysis, test-case de
 3. Create the database (if it does not already exist):
 
    ```bash
-   createdb testpilot_ai
+   createdb testpilot
    ```
 
 4. Apply the initial schema. The migration script uses the shell environment, so export the connection string first:
