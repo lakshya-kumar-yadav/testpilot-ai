@@ -3,6 +3,7 @@ import express from "express";
 import { env } from "./config/env.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { notFoundHandler } from "./middleware/not-found.js";
+import { requestIdMiddleware } from "./middleware/request-id.js";
 import { healthRouter } from "./routes/health.routes.js";
 import { authRouter } from "./routes/auth.routes.js";
 import { projectsRouter } from "./routes/projects.routes.js";
@@ -14,6 +15,7 @@ import { testCaseGenerationRouter } from "./routes/test-case-generation.routes.j
 export const app = express();
 
 app.disable("x-powered-by");
+app.use(requestIdMiddleware);
 app.use(cors({ origin: env.webOrigin }));
 app.use(express.json({ limit: "1mb" }));
 
