@@ -7,6 +7,8 @@ AI-assisted Quality Engineering workspace for requirement analysis, test-case de
 - Account registration and login with short-lived JWT bearer authentication.
 - Project creation, listing, updates, archive, and restore.
 - Requirement creation and document text extraction (PDF, DOCX, TXT).
+- Immutable requirement snapshots with version history and change summaries.
+- Version-linked AI analyses and generated test cases, including stale-result indicators.
 - Ollama-powered requirement analysis with validated structured output.
 - AI-generated draft test cases with human review and approval.
 - Test-case search, filtering, and CSV export.
@@ -52,14 +54,17 @@ AI-assisted Quality Engineering workspace for requirement analysis, test-case de
    createdb testpilot
    ```
 
-4. Apply the initial schema. The migration script uses the shell environment, so export the connection string first:
+4. Apply the initial schema for a new database, or apply the versioning migration to an existing installation. Export the connection string first:
 
    ```bash
    set -a
    source .env
    set +a
    npm run db:migrate
+   npm run db:migrate:versioning
    ```
+
+   Run `db:migrate` only for a fresh database. Existing installations that already applied migration 001 should run only `db:migrate:versioning`. Apply each migration once.
 
 5. Start Ollama and download the configured model:
 
@@ -98,6 +103,7 @@ Run these commands from the repository root:
 ```bash
 npm run typecheck
 npm run build
+npm test --workspace=@testpilot/api
 ```
 
 ## API health
@@ -111,7 +117,7 @@ API responses include an `X-Request-Id` header. Include that value when reportin
 
 - Access tokens currently use a 15-minute lifetime and are stored in browser `sessionStorage`. A secure HttpOnly-cookie session design is a separate planned hardening task.
 - Uploaded documents are processed in memory with file size, type, and signature checks; they are not permanently stored.
-- AI output is validated and generated test cases remain drafts until a human reviews them.
+- AI output is validated and generated test cases remain drafts until a human reviews them. Test cases from older requirement versions are marked non-current and cannot be approved.
 - Generated automation must not execute inside the API process. Isolated execution, resource limits, network restrictions, and secret isolation are required before enabling the worker.
 
 ## Development workflow
